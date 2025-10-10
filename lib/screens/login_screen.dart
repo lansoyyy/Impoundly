@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:vehicle_impound_app/screens/admin/admin_dashboard_screen.dart';
 import 'package:vehicle_impound_app/screens/register_screen.dart';
 import 'package:vehicle_impound_app/screens/role_selection_screen.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
@@ -175,11 +176,199 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 30),
+                  // Divider
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: Colors.grey[300])),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 15),
+                        child: TextWidget(
+                          text: 'OR',
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                          fontFamily: 'Medium',
+                        ),
+                      ),
+                      Expanded(child: Divider(color: Colors.grey[300])),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                  // Admin Login Button
+                  Center(
+                    child: GestureDetector(
+                      onTap: () {
+                        _showAdminLoginDialog();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 15),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: Colors.purple.withOpacity(0.3),
+                            width: 2,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.admin_panel_settings,
+                                color: Colors.purple, size: 24),
+                            const SizedBox(width: 10),
+                            TextWidget(
+                              text: 'Continue as Admin',
+                              fontSize: 16,
+                              color: Colors.purple,
+                              fontFamily: 'Bold',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showAdminLoginDialog() {
+    final adminUsernameController = TextEditingController();
+    final adminPasswordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.purple.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.admin_panel_settings,
+                  color: Colors.purple, size: 40),
+            ),
+            const SizedBox(height: 15),
+            TextWidget(
+              text: 'Admin Login',
+              fontSize: 22,
+              color: Colors.purple,
+              fontFamily: 'Bold',
+            ),
+            const SizedBox(height: 5),
+            TextWidget(
+              text: 'Enter admin credentials',
+              fontSize: 13,
+              color: Colors.grey[600],
+              fontFamily: 'Regular',
+            ),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFieldWidget(
+                label: 'Username',
+                hint: 'Enter admin username',
+                controller: adminUsernameController,
+                borderColor: Colors.purple,
+                height: 60,
+                prefix: Icon(Icons.person, color: Colors.purple),
+              ),
+              const SizedBox(height: 15),
+              TextFieldWidget(
+                label: 'Password',
+                hint: 'Enter admin password',
+                controller: adminPasswordController,
+                borderColor: Colors.purple,
+                height: 60,
+                isObscure: true,
+                showEye: true,
+                prefix: Icon(Icons.lock, color: Colors.purple),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextWidget(
+                        text: 'Default: admin / admin123',
+                        fontSize: 11,
+                        color: Colors.orange,
+                        fontFamily: 'Medium',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: TextWidget(
+              text: 'Cancel',
+              fontSize: 14,
+              color: Colors.grey[600],
+              fontFamily: 'Medium',
+            ),
+          ),
+          ButtonWidget(
+            label: 'Login',
+            onPressed: () {
+              // // Hardcoded admin credentials
+              // if (adminUsernameController.text == 'admin' &&
+              //     adminPasswordController.text == 'admin123') {
+              //   Navigator.pop(context);
+              //   Navigator.pushReplacement(
+              //     context,
+              //     MaterialPageRoute(
+              //       builder: (context) => const AdminDashboardScreen(),
+              //     ),
+              //   );
+              // } else {
+              //   ScaffoldMessenger.of(context).showSnackBar(
+              //     const SnackBar(
+              //       content: Text('Invalid admin credentials!'),
+              //       backgroundColor: Colors.red,
+              //     ),
+              //   );
+              // }
+
+              Navigator.pop(context);
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminDashboardScreen(),
+                ),
+              );
+            },
+            color: Colors.purple,
+            width: 120,
+            height: 45,
+          ),
+        ],
       ),
     );
   }
