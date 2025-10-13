@@ -3,7 +3,10 @@ import 'package:vehicle_impound_app/screens/driver/register_vehicle_screen.dart'
 import 'package:vehicle_impound_app/screens/driver/my_vehicles_screen.dart';
 import 'package:vehicle_impound_app/screens/driver/notification_screen.dart';
 import 'package:vehicle_impound_app/screens/driver/impound_history_screen.dart';
+import 'package:vehicle_impound_app/screens/landing_screen.dart';
+import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
+import 'package:vehicle_impound_app/widgets/button_widget.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
 
 class DriverDashboardScreen extends StatefulWidget {
@@ -93,6 +96,12 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                             builder: (context) => const NotificationScreen(),
                           ),
                         );
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.logout, color: Colors.white, size: 28),
+                      onPressed: () {
+                        _showLogoutDialog();
                       },
                     ),
                   ],
@@ -375,6 +384,58 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: TextWidget(
+          text: 'Logout',
+          fontSize: 20,
+          color: Colors.black,
+          fontFamily: 'Bold',
+        ),
+        content: TextWidget(
+          text: 'Are you sure you want to logout?',
+          fontSize: 14,
+          color: Colors.grey[600],
+          fontFamily: 'Regular',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: TextWidget(
+              text: 'Cancel',
+              fontSize: 14,
+              color: Colors.grey[600],
+              fontFamily: 'Medium',
+            ),
+          ),
+          ButtonWidget(
+            label: 'Logout',
+            onPressed: () async {
+              await FirebaseService.logoutUser();
+              if (mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LandingScreen(),
+                  ),
+                  (route) => false,
+                );
+              }
+            },
+            color: Colors.red,
+            width: 100,
+            height: 45,
           ),
         ],
       ),
