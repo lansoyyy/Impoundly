@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "994932162377",
+    "project_id": "impoundly",
+    "storage_bucket": "impoundly.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:994932162377:android:244f18533056b6af83e498",
+        "android_client_info": {
+          "package_name": "com.example.vehicle_impound_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA386aXbUaWDCUBC3gJUWWyCoTCeY5JDd0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
