@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:vehicle_impound_app/screens/admin/admin_dashboard_screen.dart';
 import 'package:vehicle_impound_app/screens/driver/driver_dashboard_screen.dart';
 import 'package:vehicle_impound_app/screens/enforcer/enforcer_dashboard_screen.dart';
+import 'package:vehicle_impound_app/screens/forgot_password_screen.dart';
 import 'package:vehicle_impound_app/screens/register_screen.dart';
 import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
@@ -123,7 +124,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () {
-                        // TODO: Implement forgot password
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ForgotPasswordScreen(),
+                          ),
+                        );
                       },
                       child: TextWidget(
                         text: 'Forgot Password?',
