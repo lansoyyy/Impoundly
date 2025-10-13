@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/button_widget.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
@@ -20,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
 
   String _selectedRole = 'Driver';
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -161,13 +163,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Center(
                     child: ButtonWidget(
                       label: 'Register',
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          // TODO: Implement registration logic
-                          Navigator.pop(context);
-                        }
-                      },
+                      onPressed: _isLoading ? null : _handleRegister,
                       width: double.infinity,
+                      isLoading: _isLoading,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -245,5 +243,94 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleRegister() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final result = await FirebaseService.registerUser(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        role: _selectedRole,
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (result['success']) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Column(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 60),
+                  const SizedBox(height: 15),
+                  TextWidget(
+                    text: 'Registration Successful!',
+                    fontSize: 20,
+                    color: Colors.green,
+                    fontFamily: 'Bold',
+                  ),
+                ],
+              ),
+              content: TextWidget(
+                text: result['message'],
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontFamily: 'Regular',
+                align: TextAlign.center,
+                maxLines: 5,
+              ),
+              actions: [
+                Center(
+                  child: ButtonWidget(
+                    label: 'OK',
+                    onPressed: () {
+                      Navigator.pop(context); // Close dialog
+                      Navigator.pop(context); // Go back to login
+                    },
+                    width: 150,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message']),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An error occurred: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

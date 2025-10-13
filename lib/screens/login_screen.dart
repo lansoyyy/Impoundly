@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:vehicle_impound_app/screens/admin/admin_dashboard_screen.dart';
+import 'package:vehicle_impound_app/screens/driver/driver_dashboard_screen.dart';
+import 'package:vehicle_impound_app/screens/enforcer/enforcer_dashboard_screen.dart';
 import 'package:vehicle_impound_app/screens/register_screen.dart';
-import 'package:vehicle_impound_app/screens/role_selection_screen.dart';
+import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/button_widget.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
@@ -19,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -134,18 +137,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   Center(
                     child: ButtonWidget(
                       label: 'Login',
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          // TODO: Implement login logic
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const RoleSelectionScreen(),
-                            ),
-                          );
-                        }
-                      },
+                      onPressed: _isLoading ? null : _handleLogin,
                       width: double.infinity,
+                      isLoading: _isLoading,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -337,32 +331,24 @@ class _LoginScreenState extends State<LoginScreen> {
           ButtonWidget(
             label: 'Login',
             onPressed: () {
-              // // Hardcoded admin credentials
-              // if (adminUsernameController.text == 'admin' &&
-              //     adminPasswordController.text == 'admin123') {
-              //   Navigator.pop(context);
-              //   Navigator.pushReplacement(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (context) => const AdminDashboardScreen(),
-              //     ),
-              //   );
-              // } else {
-              //   ScaffoldMessenger.of(context).showSnackBar(
-              //     const SnackBar(
-              //       content: Text('Invalid admin credentials!'),
-              //       backgroundColor: Colors.red,
-              //     ),
-              //   );
-              // }
-
-              Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminDashboardScreen(),
-                ),
-              );
+              // Hardcoded admin credentials
+              if (adminUsernameController.text == 'admin' &&
+                  adminPasswordController.text == 'admin123') {
+                Navigator.pop(context);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminDashboardScreen(),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Invalid admin credentials!'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             color: Colors.purple,
             width: 120,
@@ -371,5 +357,67 @@ class _LoginScreenState extends State<LoginScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final result = await FirebaseService.loginUser(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (result['success']) {
+        final userData = result['userData'] as Map<String, dynamic>;
+        final role = userData['role'];
+
+        if (mounted) {
+          // Navigate based on role
+          Widget destination;
+          if (role == 'Driver') {
+            destination = const DriverDashboardScreen();
+          } else if (role == 'Enforcer') {
+            destination = const EnforcerDashboardScreen();
+          } else {
+            destination = const DriverDashboardScreen();
+          }
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => destination),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message']),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An error occurred: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
