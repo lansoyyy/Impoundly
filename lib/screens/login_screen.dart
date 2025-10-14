@@ -397,9 +397,11 @@ class _LoginScreenState extends State<LoginScreen> {
             destination = const DriverDashboardScreen();
           }
 
-          Navigator.pushReplacement(
+          // Use pushAndRemoveUntil to clear the navigation stack
+          Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => destination),
+            (route) => false,
           );
         }
       } else {

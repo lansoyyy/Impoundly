@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/button_widget.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
@@ -19,6 +21,7 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
   final _vehicleColorController = TextEditingController();
   final _orNumberController = TextEditingController();
   final _crNumberController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -29,6 +32,93 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
     _orNumberController.dispose();
     _crNumberController.dispose();
     super.dispose();
+  }
+
+  Future<void> _registerVehicle() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final result = await FirebaseService.registerVehicle(
+        userId: user.uid,
+        plateNumber: _plateNumberController.text.trim(),
+        vehicleMake: _vehicleMakeController.text.trim(),
+        vehicleModel: _vehicleModelController.text.trim(),
+        vehicleColor: _vehicleColorController.text.trim(),
+        orNumber: _orNumberController.text.trim(),
+        crNumber: _crNumberController.text.trim(),
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (result['success']) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 60,
+              ),
+              content: TextWidget(
+                text: result['message'],
+                fontSize: 16,
+                color: Colors.black,
+                fontFamily: 'Medium',
+                align: TextAlign.center,
+              ),
+              actions: [
+                Center(
+                  child: ButtonWidget(
+                    label: 'Done',
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pop(context);
+                    },
+                    width: 150,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message']),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An error occurred: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -122,7 +212,8 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
                           controller: _plateNumberController,
                           borderColor: primary,
                           textCapitalization: TextCapitalization.characters,
-                          prefix: Icon(Icons.confirmation_number, color: primary),
+                          prefix:
+                              Icon(Icons.confirmation_number, color: primary),
                         ),
                         const SizedBox(height: 15),
                         TextFieldWidget(
@@ -175,45 +266,9 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
                         Center(
                           child: ButtonWidget(
                             label: 'Register Vehicle',
-                            onPressed: () {
-                              if (_formKey.currentState!.validate()) {
-                                // TODO: Implement vehicle registration
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    title: Icon(
-                                      Icons.check_circle,
-                                      color: Colors.green,
-                                      size: 60,
-                                    ),
-                                    content: TextWidget(
-                                      text:
-                                          'Vehicle registered successfully!',
-                                      fontSize: 16,
-                                      color: Colors.black,
-                                      fontFamily: 'Medium',
-                                      align: TextAlign.center,
-                                    ),
-                                    actions: [
-                                      Center(
-                                        child: ButtonWidget(
-                                          label: 'Done',
-                                          onPressed: () {
-                                            Navigator.pop(context);
-                                            Navigator.pop(context);
-                                          },
-                                          width: 150,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
-                            },
+                            onPressed: _isLoading ? null : _registerVehicle,
                             width: double.infinity,
+                            isLoading: _isLoading,
                           ),
                         ),
                       ],

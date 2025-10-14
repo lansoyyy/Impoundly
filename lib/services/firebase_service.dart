@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 class FirebaseService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -65,10 +66,18 @@ class FirebaseService {
     required String password,
   }) async {
     try {
+      if (kDebugMode) {
+        print('Attempting to login user: $email');
+      }
+
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
+
+      if (kDebugMode) {
+        print('Login successful for user: ${userCredential.user?.uid}');
+      }
 
       // Get user data from Firestore
       DocumentSnapshot userDoc = await _firestore
@@ -77,6 +86,9 @@ class FirebaseService {
           .get();
 
       if (!userDoc.exists) {
+        if (kDebugMode) {
+          print('User data not found in Firestore');
+        }
         await _auth.signOut();
         return {'success': false, 'message': 'User data not found'};
       }
@@ -85,6 +97,9 @@ class FirebaseService {
 
       // Check if user is active
       if (userData['status'] == 'pending') {
+        if (kDebugMode) {
+          print('User account is pending approval');
+        }
         await _auth.signOut();
         return {
           'success': false,
@@ -93,11 +108,15 @@ class FirebaseService {
       }
 
       if (userData['status'] == 'suspended') {
+        if (kDebugMode) {
+          print('User account is suspended');
+        }
         await _auth.signOut();
-        return {
-          'success': false,
-          'message': 'Your account has been suspended'
-        };
+        return {'success': false, 'message': 'Your account has been suspended'};
+      }
+
+      if (kDebugMode) {
+        print('User account is active, login complete');
       }
 
       return {
@@ -106,6 +125,9 @@ class FirebaseService {
         'userData': userData,
       };
     } on FirebaseAuthException catch (e) {
+      if (kDebugMode) {
+        print('Firebase Auth exception: ${e.code} - ${e.message}');
+      }
       String message = 'Login failed';
       if (e.code == 'user-not-found') {
         message = 'No user found for that email.';
@@ -118,13 +140,22 @@ class FirebaseService {
       }
       return {'success': false, 'message': message};
     } catch (e) {
+      if (kDebugMode) {
+        print('Login error: $e');
+      }
       return {'success': false, 'message': 'An error occurred: $e'};
     }
   }
 
   // Logout user
   static Future<void> logoutUser() async {
+    if (kDebugMode) {
+      print('Logging out user');
+    }
     await _auth.signOut();
+    if (kDebugMode) {
+      print('User logged out successfully');
+    }
   }
 
   // Send password reset email
@@ -152,13 +183,25 @@ class FirebaseService {
   // Get user data
   static Future<Map<String, dynamic>?> getUserData(String uid) async {
     try {
+      if (kDebugMode) {
+        print('Fetching user data for UID: $uid');
+      }
       DocumentSnapshot userDoc =
           await _firestore.collection('users').doc(uid).get();
       if (userDoc.exists) {
+        if (kDebugMode) {
+          print('User data found for UID: $uid');
+        }
         return userDoc.data() as Map<String, dynamic>;
+      }
+      if (kDebugMode) {
+        print('User data not found for UID: $uid');
       }
       return null;
     } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching user data: $e');
+      }
       return null;
     }
   }
@@ -240,6 +283,27 @@ class FirebaseService {
           .toList();
     } catch (e) {
       return [];
+    }
+  }
+
+  // Delete vehicle
+  static Future<bool> deleteVehicle(String vehicleId) async {
+    try {
+      await _firestore.collection('vehicles').doc(vehicleId).delete();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Update vehicle
+  static Future<bool> updateVehicle(
+      String vehicleId, Map<String, dynamic> data) async {
+    try {
+      await _firestore.collection('vehicles').doc(vehicleId).update(data);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vehicle_impound_app/screens/driver/register_vehicle_screen.dart';
 import 'package:vehicle_impound_app/screens/driver/my_vehicles_screen.dart';
 import 'package:vehicle_impound_app/screens/driver/notification_screen.dart';
@@ -17,6 +18,33 @@ class DriverDashboardScreen extends StatefulWidget {
 }
 
 class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
+  Map<String, dynamic>? _userData;
+  List<Map<String, dynamic>> _vehicles = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userData = await FirebaseService.getUserData(user.uid);
+      final vehicles = await FirebaseService.getUserVehicles(user.uid);
+      setState(() {
+        _userData = userData;
+        _vehicles = vehicles;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -56,12 +84,21 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                             color: Colors.white.withOpacity(0.9),
                             fontFamily: 'Regular',
                           ),
-                          TextWidget(
-                            text: 'John Doe',
-                            fontSize: 20,
-                            color: Colors.white,
-                            fontFamily: 'Bold',
-                          ),
+                          _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : TextWidget(
+                                  text: _userData?['name'] ?? 'Driver',
+                                  fontSize: 20,
+                                  color: Colors.white,
+                                  fontFamily: 'Bold',
+                                ),
                         ],
                       ),
                     ),
@@ -99,7 +136,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.logout, color: Colors.white, size: 28),
+                      icon: const Icon(Icons.logout,
+                          color: Colors.white, size: 28),
                       onPressed: () {
                         _showLogoutDialog();
                       },
@@ -176,19 +214,53 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                           fontFamily: 'Bold',
                         ),
                         const SizedBox(height: 15),
-                        _buildVehicleStatusCard(
-                          'ABC 1234',
-                          'Toyota Vios',
-                          'Active',
-                          Colors.green,
-                        ),
-                        const SizedBox(height: 10),
-                        _buildVehicleStatusCard(
-                          'XYZ 5678',
-                          'Honda Civic',
-                          'Active',
-                          Colors.green,
-                        ),
+                        _vehicles.isEmpty
+                            ? Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(15),
+                                  border: Border.all(
+                                    color: Colors.grey.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: Colors.grey[600],
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 15),
+                                    Expanded(
+                                      child: TextWidget(
+                                        text: 'No vehicles registered yet',
+                                        fontSize: 14,
+                                        color: Colors.grey[600],
+                                        fontFamily: 'Regular',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : Column(
+                                children: _vehicles
+                                    .take(3) // Show only first 3 vehicles
+                                    .map((vehicle) => Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 10),
+                                          child: _buildVehicleStatusCard(
+                                            vehicle['plateNumber'],
+                                            '${vehicle['vehicleMake']} ${vehicle['vehicleModel']}',
+                                            vehicle['status'],
+                                            vehicle['status'] == 'active'
+                                                ? Colors.green
+                                                : Colors.orange,
+                                          ),
+                                        ))
+                                    .toList(),
+                              ),
                         const SizedBox(height: 30),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,

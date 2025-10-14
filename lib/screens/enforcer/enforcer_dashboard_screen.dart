@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vehicle_impound_app/screens/enforcer/scan_vehicle_screen.dart';
 import 'package:vehicle_impound_app/screens/enforcer/impound_records_screen.dart';
 import 'package:vehicle_impound_app/screens/landing_screen.dart';
@@ -16,6 +17,30 @@ class EnforcerDashboardScreen extends StatefulWidget {
 }
 
 class _EnforcerDashboardScreenState extends State<EnforcerDashboardScreen> {
+  Map<String, dynamic>? _userData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userData = await FirebaseService.getUserData(user.uid);
+      setState(() {
+        _userData = userData;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -55,17 +80,27 @@ class _EnforcerDashboardScreenState extends State<EnforcerDashboardScreen> {
                             color: Colors.white.withOpacity(0.9),
                             fontFamily: 'Regular',
                           ),
-                          TextWidget(
-                            text: 'Officer Juan Dela Cruz',
-                            fontSize: 20,
-                            color: Colors.white,
-                            fontFamily: 'Bold',
-                          ),
+                          _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : TextWidget(
+                                  text: _userData?['name'] ?? 'Enforcer',
+                                  fontSize: 20,
+                                  color: Colors.white,
+                                  fontFamily: 'Bold',
+                                ),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.logout, color: Colors.white, size: 28),
+                      icon: const Icon(Icons.logout,
+                          color: Colors.white, size: 28),
                       onPressed: () {
                         _showLogoutDialog();
                       },

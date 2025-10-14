@@ -2,7 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:vehicle_impound_app/firebase_options.dart';
-import 'package:vehicle_impound_app/screens/splash_screen.dart';
+import 'package:vehicle_impound_app/widgets/auth_wrapper.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 
 void main() async {
@@ -11,6 +11,7 @@ void main() async {
     name: 'impoundly',
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -50,7 +51,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const SplashScreen(),
+      home: const AuthWrapper(),
     );
   }
 }

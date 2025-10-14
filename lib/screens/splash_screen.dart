@@ -1,10 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:vehicle_impound_app/screens/driver/driver_dashboard_screen.dart';
-import 'package:vehicle_impound_app/screens/enforcer/enforcer_dashboard_screen.dart';
-import 'package:vehicle_impound_app/screens/landing_screen.dart';
-import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
 
@@ -45,100 +41,6 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _animationController.forward();
-
-    // Check for auto-login after 3 seconds
-    Timer(const Duration(seconds: 3), () {
-      _checkAutoLogin();
-    });
-  }
-
-  Future<void> _checkAutoLogin() async {
-    try {
-      // Check if user is already logged in
-      final currentUser = FirebaseService.getCurrentUser();
-
-      if (currentUser != null) {
-        // User is logged in, get user data from Firestore
-        final userData = await FirebaseService.getUserData(currentUser.uid);
-
-        if (userData != null) {
-          final role = userData['role'];
-          final status = userData['status'];
-
-          // Check if account is active
-          if (status == 'active') {
-            // Navigate to appropriate dashboard based on role
-            Widget destination;
-            if (role == 'Driver') {
-              destination = const DriverDashboardScreen();
-            } else if (role == 'Enforcer') {
-              destination = const EnforcerDashboardScreen();
-            } else {
-              destination = const LandingScreen();
-            }
-
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) =>
-                      destination,
-                  transitionsBuilder:
-                      (context, animation, secondaryAnimation, child) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: child,
-                    );
-                  },
-                  transitionDuration: const Duration(milliseconds: 500),
-                ),
-              );
-            }
-            return;
-          } else {
-            // Account is not active (pending/suspended/rejected)
-            // Logout and go to landing screen
-            await FirebaseService.logoutUser();
-          }
-        }
-      }
-
-      // No user logged in or account not active, go to landing screen
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const LandingScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
-              );
-            },
-            transitionDuration: const Duration(milliseconds: 500),
-          ),
-        );
-      }
-    } catch (e) {
-      // Error occurred, go to landing screen
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const LandingScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
-              );
-            },
-            transitionDuration: const Duration(milliseconds: 500),
-          ),
-        );
-      }
-    }
   }
 
   @override
