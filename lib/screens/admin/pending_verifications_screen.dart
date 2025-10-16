@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/button_widget.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
@@ -13,33 +14,71 @@ class PendingVerificationsScreen extends StatefulWidget {
 
 class _PendingVerificationsScreenState
     extends State<PendingVerificationsScreen> {
-  // Sample pending verifications
-  List<Map<String, dynamic>> pendingDrivers = [
-    {
-      'name': 'John Doe',
-      'email': 'john.doe@email.com',
-      'phone': '09123456789',
-      'plateNumber': 'ABC 1234',
-      'vehicleMake': 'Toyota',
-      'vehicleModel': 'Vios',
-      'orNumber': 'OR-123456',
-      'crNumber': 'CR-789012',
-      'licenseNumber': 'N01-12-345678',
-      'dateSubmitted': 'Oct 10, 2025',
-    },
-    {
-      'name': 'Jane Smith',
-      'email': 'jane.smith@email.com',
-      'phone': '09987654321',
-      'plateNumber': 'XYZ 5678',
-      'vehicleMake': 'Honda',
-      'vehicleModel': 'Civic',
-      'orNumber': 'OR-234567',
-      'crNumber': 'CR-890123',
-      'licenseNumber': 'N01-23-456789',
-      'dateSubmitted': 'Oct 10, 2025',
-    },
-  ];
+  List<Map<String, dynamic>> pendingDrivers = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPendingVerifications();
+  }
+
+  Future<void> _fetchPendingVerifications() async {
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'Driver')
+          // .where('status', isEqualTo: 'suspended')
+          .get();
+
+      List<Map<String, dynamic>> drivers = [];
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        data['id'] = doc.id;
+
+        // Format date
+        String dateSubmitted = 'N/A';
+        if (data['createdAt'] != null) {
+          final date = (data['createdAt'] as Timestamp).toDate();
+          final months = [
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'May',
+            'Jun',
+            'Jul',
+            'Aug',
+            'Sep',
+            'Oct',
+            'Nov',
+            'Dec'
+          ];
+          dateSubmitted = '${months[date.month - 1]} ${date.day}, ${date.year}';
+        }
+        data['dateSubmitted'] = dateSubmitted;
+
+        drivers.add(data);
+      }
+
+      setState(() {
+        pendingDrivers = drivers;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading verifications: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,34 +110,38 @@ class _PendingVerificationsScreenState
             stops: const [0.0, 0.15],
           ),
         ),
-        child: pendingDrivers.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.verified_user,
-                      size: 100,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 20),
-                    TextWidget(
-                      text: 'No pending verifications',
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                      fontFamily: 'Medium',
-                    ),
-                  ],
-                ),
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: primary),
               )
-            : ListView.builder(
-                padding: const EdgeInsets.all(15),
-                itemCount: pendingDrivers.length,
-                itemBuilder: (context, index) {
-                  final driver = pendingDrivers[index];
-                  return _buildVerificationCard(driver, index);
-                },
-              ),
+            : pendingDrivers.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.verified_user,
+                          size: 100,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 20),
+                        TextWidget(
+                          text: 'No pending verifications',
+                          fontSize: 18,
+                          color: Colors.grey[600],
+                          fontFamily: 'Medium',
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(15),
+                    itemCount: pendingDrivers.length,
+                    itemBuilder: (context, index) {
+                      final driver = pendingDrivers[index];
+                      return _buildVerificationCard(driver, index);
+                    },
+                  ),
       ),
     );
   }
@@ -192,26 +235,27 @@ class _PendingVerificationsScreenState
                   fontFamily: 'Bold',
                 ),
                 const SizedBox(height: 15),
-                _buildDetailRow('Phone', driver['phone']),
+                _buildDetailRow('Phone', driver['phone'] ?? 'N/A'),
                 const SizedBox(height: 10),
-                _buildDetailRow('License Number', driver['licenseNumber']),
+                _buildDetailRow(
+                    'License Number', driver['licenseNumber'] ?? 'N/A'),
                 const SizedBox(height: 20),
-                TextWidget(
-                  text: 'Vehicle Information',
-                  fontSize: 16,
-                  color: primary,
-                  fontFamily: 'Bold',
-                ),
-                const SizedBox(height: 15),
-                _buildDetailRow('Plate Number', driver['plateNumber']),
-                const SizedBox(height: 10),
-                _buildDetailRow('Vehicle',
-                    '${driver['vehicleMake']} ${driver['vehicleModel']}'),
-                const SizedBox(height: 10),
-                _buildDetailRow('OR Number', driver['orNumber']),
-                const SizedBox(height: 10),
-                _buildDetailRow('CR Number', driver['crNumber']),
-                const SizedBox(height: 25),
+                // TextWidget(
+                //   text: 'Vehicle Information',
+                //   fontSize: 16,
+                //   color: primary,
+                //   fontFamily: 'Bold',
+                // ),
+                // const SizedBox(height: 15),
+                // _buildDetailRow('Plate Number', driver['plateNumber'] ?? 'N/A'),
+                // const SizedBox(height: 10),
+                // _buildDetailRow('Vehicle',
+                //     '${driver['vehicleMake'] ?? 'N/A'} ${driver['vehicleModel'] ?? 'N/A'}'),
+                // const SizedBox(height: 10),
+                // _buildDetailRow('OR Number', driver['orNumber'] ?? 'N/A'),
+                // const SizedBox(height: 10),
+                // _buildDetailRow('CR Number', driver['crNumber'] ?? 'N/A'),
+                // const SizedBox(height: 25),
                 // Action Buttons
                 Row(
                   children: [
@@ -313,17 +357,33 @@ class _PendingVerificationsScreenState
           ),
           ButtonWidget(
             label: 'Approve',
-            onPressed: () {
-              setState(() {
-                pendingDrivers.removeAt(index);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${driver['name']} has been approved!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+            onPressed: () async {
+              try {
+                // Update user status to active
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(driver['id'])
+                    .update({'status': 'active'});
+
+                setState(() {
+                  pendingDrivers.removeAt(index);
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${driver['name']} has been approved!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error approving user: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             color: Colors.green,
             width: 120,
@@ -389,17 +449,36 @@ class _PendingVerificationsScreenState
           ),
           ButtonWidget(
             label: 'Reject',
-            onPressed: () {
-              setState(() {
-                pendingDrivers.removeAt(index);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${driver['name']} has been rejected.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+            onPressed: () async {
+              try {
+                // Update user status to rejected and add reason
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(driver['id'])
+                    .update({
+                  'status': 'rejected',
+                  'rejectionReason': reasonController.text,
+                });
+
+                setState(() {
+                  pendingDrivers.removeAt(index);
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${driver['name']} has been rejected.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } catch (e) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error rejecting user: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             color: Colors.red,
             width: 120,

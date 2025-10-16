@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:vehicle_impound_app/screens/admin/pending_verifications_screen.dart';
 import 'package:vehicle_impound_app/screens/admin/manage_users_screen.dart';
 import 'package:vehicle_impound_app/screens/admin/manage_enforcers_screen.dart';
@@ -13,6 +14,66 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  int _pendingCount = 0;
+  int _driversCount = 0;
+  int _enforcersCount = 0;
+  int _violationsCount = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStatistics();
+  }
+
+  Future<void> _fetchStatistics() async {
+    try {
+      // Fetch pending verifications (users with role 'driver' and status 'pending')
+      final pendingQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'Driver')
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      // Fetch total drivers (users with role 'driver' and status 'active')
+      final driversQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'Driver')
+          .where('status', isEqualTo: 'active')
+          .get();
+
+      // Fetch total enforcers (users with role 'enforcer')
+      final enforcersQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'Enforcer')
+          .get();
+
+      // Fetch total violations
+      final violationsQuery =
+          await FirebaseFirestore.instance.collection('violations').get();
+
+      setState(() {
+        _pendingCount = pendingQuery.docs.length;
+        _driversCount = driversQuery.docs.length;
+        _enforcersCount = enforcersQuery.docs.length;
+        _violationsCount = violationsQuery.docs.length;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading statistics: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,7 +124,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.logout, color: Colors.white, size: 28),
+                      icon: const Icon(Icons.logout,
+                          color: Colors.white, size: 28),
                       onPressed: () {
                         _showLogoutDialog();
                       },
@@ -96,49 +158,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ),
                         const SizedBox(height: 20),
                         // Statistics Cards
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildStatCard(
-                                '8',
-                                'Pending\nVerifications',
-                                Icons.pending_actions,
-                                Colors.orange,
+                        _isLoading
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(40),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              )
+                            : Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          _pendingCount.toString(),
+                                          'Pending\nVerifications',
+                                          Icons.pending_actions,
+                                          Colors.orange,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 15),
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          _driversCount.toString(),
+                                          'Total\nDrivers',
+                                          Icons.person,
+                                          Colors.blue,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 15),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          _enforcersCount.toString(),
+                                          'Total\nEnforcers',
+                                          Icons.badge,
+                                          Colors.green,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 15),
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          _violationsCount.toString(),
+                                          'Total\nRecords',
+                                          Icons.history,
+                                          Colors.purple,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              child: _buildStatCard(
-                                '156',
-                                'Total\nDrivers',
-                                Icons.person,
-                                Colors.blue,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 15),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildStatCard(
-                                '24',
-                                'Total\nEnforcers',
-                                Icons.badge,
-                                Colors.green,
-                              ),
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              child: _buildStatCard(
-                                '342',
-                                'Total\nRecords',
-                                Icons.history,
-                                Colors.purple,
-                              ),
-                            ),
-                          ],
-                        ),
                         const SizedBox(height: 30),
                         // Management Options
                         TextWidget(
@@ -153,7 +226,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           'Review and approve driver registrations',
                           Icons.verified_user,
                           Colors.orange,
-                          8,
+                          _pendingCount > 0 ? _pendingCount : null,
                           () {
                             Navigator.push(
                               context,

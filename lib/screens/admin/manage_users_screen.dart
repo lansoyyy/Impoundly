@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/button_widget.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
@@ -12,29 +13,66 @@ class ManageUsersScreen extends StatefulWidget {
 }
 
 class _ManageUsersScreenState extends State<ManageUsersScreen> {
-  List<Map<String, dynamic>> drivers = [
-    {
-      'name': 'John Doe',
-      'email': 'john.doe@email.com',
-      'phone': '09123456789',
-      'plateNumber': 'ABC 1234',
-      'status': 'Active',
-    },
-    {
-      'name': 'Jane Smith',
-      'email': 'jane.smith@email.com',
-      'phone': '09987654321',
-      'plateNumber': 'XYZ 5678',
-      'status': 'Active',
-    },
-    {
-      'name': 'Mark Johnson',
-      'email': 'mark.j@email.com',
-      'phone': '09111222333',
-      'plateNumber': 'DEF 9012',
-      'status': 'Suspended',
-    },
-  ];
+  List<Map<String, dynamic>> drivers = [];
+  List<Map<String, dynamic>> filteredDrivers = [];
+  bool _isLoading = true;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDrivers();
+  }
+
+  Future<void> _fetchDrivers() async {
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'Driver')
+          .where('status', whereIn: ['active', 'suspended']).get();
+
+      List<Map<String, dynamic>> driversList = [];
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        data['status'] = data['status'] == 'active' ? 'Active' : 'Suspended';
+        driversList.add(data);
+      }
+
+      setState(() {
+        drivers = driversList;
+        filteredDrivers = driversList;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading drivers: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _filterDrivers(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        filteredDrivers = List.from(drivers);
+      } else {
+        filteredDrivers = drivers
+            .where((driver) => driver['name']
+                .toString()
+                .toLowerCase()
+                .contains(query.toLowerCase()))
+            .toList();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,14 +90,14 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           color: Colors.white,
           fontFamily: 'Bold',
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.white),
-            onPressed: () {
-              _showAddDriverDialog();
-            },
-          ),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.add, color: Colors.white),
+        //     onPressed: () {
+        //       _showAddDriverDialog();
+        //     },
+        //   ),
+        // ],
       ),
       body: Container(
         width: double.infinity,
@@ -74,13 +112,114 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             stops: const [0.0, 0.15],
           ),
         ),
-        child: ListView.builder(
-          padding: const EdgeInsets.all(15),
-          itemCount: drivers.length,
-          itemBuilder: (context, index) {
-            final driver = drivers[index];
-            return _buildDriverCard(driver, index);
-          },
+        child: Column(
+          children: [
+            // Search Bar
+            Container(
+              margin: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  _filterDrivers(value);
+                },
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 15,
+                  ),
+                  border: InputBorder.none,
+                  hintText: 'Search driver by name...',
+                  hintStyle: TextStyle(
+                    color: Colors.grey[400],
+                    fontFamily: 'Regular',
+                    fontSize: 14,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: Colors.grey[400],
+                    size: 25,
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchController.clear();
+                            _filterDrivers('');
+                          },
+                        )
+                      : null,
+                ),
+              ),
+            ),
+            // Driver List
+            Expanded(
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    )
+                  : filteredDrivers.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.search_off,
+                                size: 100,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 20),
+                              TextWidget(
+                                text: _searchController.text.isEmpty
+                                    ? 'No drivers found'
+                                    : 'No drivers match "${_searchController.text}"',
+                                fontSize: 18,
+                                color: Colors.grey[600],
+                                fontFamily: 'Medium',
+                              ),
+                              if (_searchController.text.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: TextButton(
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _filterDrivers('');
+                                    },
+                                    child: TextWidget(
+                                      text: 'Clear search',
+                                      fontSize: 14,
+                                      color: primary,
+                                      fontFamily: 'Medium',
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 15),
+                          itemCount: filteredDrivers.length,
+                          itemBuilder: (context, index) {
+                            final driver = filteredDrivers[index];
+                            // Find the original index for operations like toggle, edit, delete
+                            final originalIndex = drivers.indexWhere(
+                              (d) => d['id'] == driver['id'],
+                            );
+                            return _buildDriverCard(driver, originalIndex);
+                          },
+                        ),
+            ),
+          ],
         ),
       ),
     );
@@ -159,7 +298,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   child: _buildInfoItem('Phone', driver['phone']),
                 ),
                 Expanded(
-                  child: _buildInfoItem('Plate', driver['plateNumber']),
+                  child: _buildInfoItem('Status',
+                      driver['status'] == 'active' ? 'Active' : 'Suspended'),
                 ),
               ],
             ),
@@ -267,17 +407,41 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
   }
 
-  void _toggleStatus(int index) {
-    setState(() {
-      drivers[index]['status'] =
-          drivers[index]['status'] == 'Active' ? 'Suspended' : 'Active';
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-            '${drivers[index]['name']} is now ${drivers[index]['status']}'),
-      ),
-    );
+  void _toggleStatus(int index) async {
+    try {
+      final newStatus =
+          drivers[index]['status'] == 'Active' ? 'suspended' : 'active';
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(drivers[index]['id'])
+          .update({'status': newStatus});
+
+      setState(() {
+        drivers[index]['status'] =
+            drivers[index]['status'] == 'Active' ? 'Suspended' : 'Active';
+
+        // Update the filtered list as well
+        final filteredIndex = filteredDrivers.indexWhere(
+          (d) => d['id'] == drivers[index]['id'],
+        );
+        if (filteredIndex != -1) {
+          filteredDrivers[filteredIndex]['status'] = drivers[index]['status'];
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '${drivers[index]['name']} is now ${drivers[index]['status']}'),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating status: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showDeleteDialog(Map<String, dynamic> driver, int index) {
@@ -311,17 +475,34 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           ),
           ButtonWidget(
             label: 'Delete',
-            onPressed: () {
-              setState(() {
-                drivers.removeAt(index);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${driver['name']} has been deleted'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+            onPressed: () async {
+              try {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(driver['id'])
+                    .delete();
+
+                setState(() {
+                  drivers.removeAt(index);
+                  // Also remove from filtered list
+                  filteredDrivers.removeWhere((d) => d['id'] == driver['id']);
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${driver['name']} has been deleted'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } catch (e) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error deleting user: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             color: Colors.red,
             width: 100,
@@ -377,14 +558,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 borderColor: primary,
                 height: 60,
               ),
-              const SizedBox(height: 10),
-              TextFieldWidget(
-                label: 'Plate Number',
-                hint: 'Enter plate number',
-                controller: plateController,
-                borderColor: primary,
-                height: 60,
-              ),
             ],
           ),
         ),
@@ -404,13 +577,22 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               if (nameController.text.isNotEmpty &&
                   emailController.text.isNotEmpty) {
                 setState(() {
-                  drivers.add({
+                  final newDriver = {
                     'name': nameController.text,
                     'email': emailController.text,
                     'phone': phoneController.text,
-                    'plateNumber': plateController.text,
                     'status': 'Active',
-                  });
+                  };
+                  drivers.add(newDriver);
+
+                  // Add to filtered list if it matches current search
+                  if (_searchController.text.isEmpty ||
+                      newDriver['name']
+                          .toString()
+                          .toLowerCase()
+                          .contains(_searchController.text.toLowerCase())) {
+                    filteredDrivers.add(newDriver);
+                  }
                 });
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -474,14 +656,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 borderColor: primary,
                 height: 60,
               ),
-              const SizedBox(height: 10),
-              TextFieldWidget(
-                label: 'Plate Number',
-                hint: 'Enter plate number',
-                controller: plateController,
-                borderColor: primary,
-                height: 60,
-              ),
             ],
           ),
         ),
@@ -497,20 +671,51 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           ),
           ButtonWidget(
             label: 'Update',
-            onPressed: () {
-              setState(() {
-                drivers[index]['name'] = nameController.text;
-                drivers[index]['email'] = emailController.text;
-                drivers[index]['phone'] = phoneController.text;
-                drivers[index]['plateNumber'] = plateController.text;
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Driver updated successfully'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+            onPressed: () async {
+              try {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(driver['id'])
+                    .update({
+                  'name': nameController.text,
+                  'email': emailController.text,
+                  'phone': phoneController.text,
+                });
+
+                setState(() {
+                  drivers[index]['name'] = nameController.text;
+                  drivers[index]['email'] = emailController.text;
+                  drivers[index]['phone'] = phoneController.text;
+
+                  // Update the filtered list as well
+                  final filteredIndex = filteredDrivers.indexWhere(
+                    (d) => d['id'] == drivers[index]['id'],
+                  );
+                  if (filteredIndex != -1) {
+                    filteredDrivers[filteredIndex]['name'] =
+                        nameController.text;
+                    filteredDrivers[filteredIndex]['email'] =
+                        emailController.text;
+                    filteredDrivers[filteredIndex]['phone'] =
+                        phoneController.text;
+                  }
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Driver updated successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error updating driver: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             width: 100,
             height: 45,

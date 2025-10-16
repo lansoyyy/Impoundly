@@ -34,7 +34,7 @@ class FirebaseService {
         'email': email,
         'phone': phone,
         'role': role,
-        'status': role == 'Driver' ? 'pending' : 'active',
+        'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -418,10 +418,7 @@ class FirebaseService {
         }
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error searching for vehicle: $e'
-      };
+      return {'success': false, 'message': 'Error searching for vehicle: $e'};
     }
   }
 
@@ -472,10 +469,7 @@ class FirebaseService {
         'violationId': violationRef.id,
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Failed to create violation: $e'
-      };
+      return {'success': false, 'message': 'Failed to create violation: $e'};
     }
   }
 

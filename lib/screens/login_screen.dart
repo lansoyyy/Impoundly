@@ -277,51 +277,53 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         content: Form(
           key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFieldWidget(
-                label: 'Username',
-                hint: 'Enter admin username',
-                controller: adminUsernameController,
-                borderColor: Colors.purple,
-                height: 60,
-                prefix: Icon(Icons.person, color: Colors.purple),
-              ),
-              const SizedBox(height: 15),
-              TextFieldWidget(
-                label: 'Password',
-                hint: 'Enter admin password',
-                controller: adminPasswordController,
-                borderColor: Colors.purple,
-                height: 60,
-                isObscure: true,
-                showEye: true,
-                prefix: Icon(Icons.lock, color: Colors.purple),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFieldWidget(
+                  label: 'Username',
+                  hint: 'Enter admin username',
+                  controller: adminUsernameController,
+                  borderColor: Colors.purple,
+                  height: 60,
+                  prefix: Icon(Icons.person, color: Colors.purple),
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.orange, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextWidget(
-                        text: 'Default: admin / admin123',
-                        fontSize: 11,
-                        color: Colors.orange,
-                        fontFamily: 'Medium',
+                const SizedBox(height: 15),
+                TextFieldWidget(
+                  label: 'Password',
+                  hint: 'Enter admin password',
+                  controller: adminPasswordController,
+                  borderColor: Colors.purple,
+                  height: 60,
+                  isObscure: true,
+                  showEye: true,
+                  prefix: Icon(Icons.lock, color: Colors.purple),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextWidget(
+                          text: 'Default: admin / admin123',
+                          fontSize: 11,
+                          color: Colors.orange,
+                          fontFamily: 'Medium',
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         actions: [

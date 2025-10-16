@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/button_widget.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
@@ -12,29 +13,48 @@ class ManageEnforcersScreen extends StatefulWidget {
 }
 
 class _ManageEnforcersScreenState extends State<ManageEnforcersScreen> {
-  List<Map<String, dynamic>> enforcers = [
-    {
-      'name': 'Officer Juan Dela Cruz',
-      'email': 'juan.delacruz@mmda.gov.ph',
-      'phone': '09123456789',
-      'badgeNumber': 'MMDA-001',
-      'status': 'Active',
-    },
-    {
-      'name': 'Officer Maria Santos',
-      'email': 'maria.santos@mmda.gov.ph',
-      'phone': '09987654321',
-      'badgeNumber': 'MMDA-002',
-      'status': 'Active',
-    },
-    {
-      'name': 'Officer Pedro Reyes',
-      'email': 'pedro.reyes@mmda.gov.ph',
-      'phone': '09111222333',
-      'badgeNumber': 'MMDA-003',
-      'status': 'Suspended',
-    },
-  ];
+  List<Map<String, dynamic>> enforcers = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchEnforcers();
+  }
+
+  Future<void> _fetchEnforcers() async {
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'Enforcer')
+          .get();
+
+      List<Map<String, dynamic>> enforcersList = [];
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        data['status'] = data['status'] == 'active' ? 'Active' : 'Suspended';
+        enforcersList.add(data);
+      }
+
+      setState(() {
+        enforcers = enforcersList;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading enforcers: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,14 +72,14 @@ class _ManageEnforcersScreenState extends State<ManageEnforcersScreen> {
           color: Colors.white,
           fontFamily: 'Bold',
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.white),
-            onPressed: () {
-              _showAddEnforcerDialog();
-            },
-          ),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.add, color: Colors.white),
+        //     onPressed: () {
+        //       _showAddEnforcerDialog();
+        //     },
+        //   ),
+        // ],
       ),
       body: Container(
         width: double.infinity,
@@ -74,14 +94,38 @@ class _ManageEnforcersScreenState extends State<ManageEnforcersScreen> {
             stops: const [0.0, 0.15],
           ),
         ),
-        child: ListView.builder(
-          padding: const EdgeInsets.all(15),
-          itemCount: enforcers.length,
-          itemBuilder: (context, index) {
-            final enforcer = enforcers[index];
-            return _buildEnforcerCard(enforcer, index);
-          },
-        ),
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              )
+            : enforcers.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.badge_outlined,
+                          size: 100,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 20),
+                        TextWidget(
+                          text: 'No enforcers found',
+                          fontSize: 18,
+                          color: Colors.grey[600],
+                          fontFamily: 'Medium',
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(15),
+                    itemCount: enforcers.length,
+                    itemBuilder: (context, index) {
+                      final enforcer = enforcers[index];
+                      return _buildEnforcerCard(enforcer, index);
+                    },
+                  ),
       ),
     );
   }
@@ -158,9 +202,9 @@ class _ManageEnforcersScreenState extends State<ManageEnforcersScreen> {
                 Expanded(
                   child: _buildInfoItem('Phone', enforcer['phone']),
                 ),
-                Expanded(
-                  child: _buildInfoItem('Badge', enforcer['badgeNumber']),
-                ),
+                // Expanded(
+                //   child: _buildInfoItem('Badge', enforcer['badgeNumber']),
+                // ),
               ],
             ),
             const SizedBox(height: 20),
@@ -268,17 +312,33 @@ class _ManageEnforcersScreenState extends State<ManageEnforcersScreen> {
     );
   }
 
-  void _toggleStatus(int index) {
-    setState(() {
-      enforcers[index]['status'] =
-          enforcers[index]['status'] == 'Active' ? 'Suspended' : 'Active';
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-            '${enforcers[index]['name']} is now ${enforcers[index]['status']}'),
-      ),
-    );
+  void _toggleStatus(int index) async {
+    try {
+      final newStatus =
+          enforcers[index]['status'] == 'Active' ? 'suspended' : 'active';
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(enforcers[index]['id'])
+          .update({'status': newStatus});
+
+      setState(() {
+        enforcers[index]['status'] =
+            enforcers[index]['status'] == 'Active' ? 'Suspended' : 'Active';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '${enforcers[index]['name']} is now ${enforcers[index]['status']}'),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating status: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showDeleteDialog(Map<String, dynamic> enforcer, int index) {
@@ -312,17 +372,32 @@ class _ManageEnforcersScreenState extends State<ManageEnforcersScreen> {
           ),
           ButtonWidget(
             label: 'Delete',
-            onPressed: () {
-              setState(() {
-                enforcers.removeAt(index);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${enforcer['name']} has been deleted'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+            onPressed: () async {
+              try {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(enforcer['id'])
+                    .delete();
+
+                setState(() {
+                  enforcers.removeAt(index);
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${enforcer['name']} has been deleted'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } catch (e) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error deleting enforcer: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             color: Colors.red,
             width: 100,
@@ -382,14 +457,6 @@ class _ManageEnforcersScreenState extends State<ManageEnforcersScreen> {
               ),
               const SizedBox(height: 10),
               TextFieldWidget(
-                label: 'Badge Number',
-                hint: 'Enter badge number',
-                controller: badgeController,
-                borderColor: primary,
-                height: 60,
-              ),
-              const SizedBox(height: 10),
-              TextFieldWidget(
                 label: 'Username',
                 hint: 'Enter username',
                 controller: usernameController,
@@ -428,7 +495,6 @@ class _ManageEnforcersScreenState extends State<ManageEnforcersScreen> {
                     'name': nameController.text,
                     'email': emailController.text,
                     'phone': phoneController.text,
-                    'badgeNumber': badgeController.text,
                     'status': 'Active',
                   });
                 });
@@ -495,14 +561,6 @@ class _ManageEnforcersScreenState extends State<ManageEnforcersScreen> {
                 borderColor: primary,
                 height: 60,
               ),
-              const SizedBox(height: 10),
-              TextFieldWidget(
-                label: 'Badge Number',
-                hint: 'Enter badge number',
-                controller: badgeController,
-                borderColor: primary,
-                height: 60,
-              ),
             ],
           ),
         ),
@@ -518,20 +576,38 @@ class _ManageEnforcersScreenState extends State<ManageEnforcersScreen> {
           ),
           ButtonWidget(
             label: 'Update',
-            onPressed: () {
-              setState(() {
-                enforcers[index]['name'] = nameController.text;
-                enforcers[index]['email'] = emailController.text;
-                enforcers[index]['phone'] = phoneController.text;
-                enforcers[index]['badgeNumber'] = badgeController.text;
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Enforcer updated successfully'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+            onPressed: () async {
+              try {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(enforcer['id'])
+                    .update({
+                  'name': nameController.text,
+                  'email': emailController.text,
+                  'phone': phoneController.text,
+                });
+
+                setState(() {
+                  enforcers[index]['name'] = nameController.text;
+                  enforcers[index]['email'] = emailController.text;
+                  enforcers[index]['phone'] = phoneController.text;
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Enforcer updated successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error updating enforcer: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             width: 100,
             height: 45,
