@@ -20,6 +20,8 @@ class DriverDashboardScreen extends StatefulWidget {
 class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   Map<String, dynamic>? _userData;
   List<Map<String, dynamic>> _vehicles = [];
+  List<Map<String, dynamic>> _violations = [];
+  int _unreadNotifications = 0;
   bool _isLoading = true;
 
   @override
@@ -33,9 +35,16 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     if (user != null) {
       final userData = await FirebaseService.getUserData(user.uid);
       final vehicles = await FirebaseService.getUserVehicles(user.uid);
+      final violations = await FirebaseService.getUserViolations(user.uid);
+
+      // Count unread notifications (pending violations)
+      final unread = violations.where((v) => v['status'] == 'pending').length;
+
       setState(() {
         _userData = userData;
         _vehicles = vehicles;
+        _violations = violations;
+        _unreadNotifications = violations.length;
         _isLoading = false;
       });
     } else {
@@ -117,7 +126,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                                 shape: BoxShape.circle,
                               ),
                               child: TextWidget(
-                                text: '3',
+                                text: _unreadNotifications.toString(),
                                 fontSize: 10,
                                 color: Colors.white,
                                 fontFamily: 'Bold',
@@ -247,19 +256,28 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                             : Column(
                                 children: _vehicles
                                     .take(3) // Show only first 3 vehicles
-                                    .map((vehicle) => Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 10),
-                                          child: _buildVehicleStatusCard(
-                                            vehicle['plateNumber'],
-                                            '${vehicle['vehicleMake']} ${vehicle['vehicleModel']}',
-                                            vehicle['status'],
-                                            vehicle['status'] == 'active'
-                                                ? Colors.green
-                                                : Colors.orange,
-                                          ),
-                                        ))
-                                    .toList(),
+                                    .map((vehicle) {
+                                  // Check if vehicle has pending violations
+                                  final hasViolation = _violations.any((v) =>
+                                      v['plateNumber'] ==
+                                      vehicle['plateNumber']);
+
+                                  String status = hasViolation
+                                      ? 'Violation Alert'
+                                      : 'Active';
+                                  Color statusColor =
+                                      hasViolation ? Colors.red : Colors.green;
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _buildVehicleStatusCard(
+                                      vehicle['plateNumber'],
+                                      '${vehicle['vehicleMake']} ${vehicle['vehicleModel']}',
+                                      status,
+                                      statusColor,
+                                    ),
+                                  );
+                                }).toList(),
                               ),
                         const SizedBox(height: 30),
                         Row(
@@ -291,12 +309,55 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                           ],
                         ),
                         const SizedBox(height: 15),
-                        _buildActivityCard(
-                          'No Recent Activity',
-                          'Your vehicles are safe',
-                          Icons.check_circle,
-                          Colors.green,
-                        ),
+                        if (_violations.isEmpty)
+                          _buildActivityCard(
+                            'No Recent Activity',
+                            'Your vehicles are safe',
+                            Icons.check_circle,
+                            Colors.green,
+                          )
+                        else
+                          ..._violations.take(3).map((violation) {
+                            final createdAt = violation['createdAt'];
+                            String timeAgo = 'Just now';
+
+                            if (createdAt != null) {
+                              final date = createdAt.toDate();
+                              final diff = DateTime.now().difference(date);
+
+                              if (diff.inDays > 0) {
+                                timeAgo =
+                                    '${diff.inDays} day${diff.inDays > 1 ? 's' : ''} ago';
+                              } else if (diff.inHours > 0) {
+                                timeAgo =
+                                    '${diff.inHours} hour${diff.inHours > 1 ? 's' : ''} ago';
+                              } else if (diff.inMinutes > 0) {
+                                timeAgo =
+                                    '${diff.inMinutes} minute${diff.inMinutes > 1 ? 's' : ''} ago';
+                              }
+                            }
+
+                            String title =
+                                violation['violationType'] ?? 'Violation';
+                            String subtitle =
+                                '${violation['plateNumber']} • $timeAgo';
+                            IconData icon = Icons.warning;
+                            Color color = Colors.orange;
+
+                            if (violation['status'] == 'pending') {
+                              icon = Icons.notifications_active;
+                              color = Colors.red;
+                            } else if (violation['status'] == 'responded') {
+                              icon = Icons.check_circle;
+                              color = Colors.green;
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _buildActivityCard(
+                                  title, subtitle, icon, color),
+                            );
+                          }).toList(),
                       ],
                     ),
                   ),

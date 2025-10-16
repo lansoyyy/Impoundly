@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
 
@@ -11,47 +13,42 @@ class ImpoundRecordsScreen extends StatefulWidget {
 
 class _ImpoundRecordsScreenState extends State<ImpoundRecordsScreen> {
   String _selectedFilter = 'All';
+  List<Map<String, dynamic>> _allRecords = [];
+  bool _isLoading = true;
 
-  final List<Map<String, dynamic>> records = [
-    {
-      'plateNumber': 'ABC 1234',
-      'owner': 'John Doe',
-      'reason': 'Clearing Operation',
-      'location': 'EDSA Guadalupe',
-      'date': 'Oct 10, 2025',
-      'time': '10:30 AM',
-      'action': 'Ticket Issued',
-      'status': 'Resolved',
-      'driverResponse': "I'm Here",
-    },
-    {
-      'plateNumber': 'XYZ 5678',
-      'owner': 'Jane Smith',
-      'reason': 'Illegal Parking',
-      'location': 'Ayala Avenue',
-      'date': 'Oct 10, 2025',
-      'time': '9:15 AM',
-      'action': 'Impounded',
-      'status': 'Pending',
-      'driverResponse': 'No Response',
-    },
-    {
-      'plateNumber': 'DEF 9012',
-      'owner': 'Mark Johnson',
-      'reason': 'Obstruction',
-      'location': 'Ortigas Center',
-      'date': 'Oct 9, 2025',
-      'time': '3:45 PM',
-      'action': 'Ticket Issued',
-      'status': 'Resolved',
-      'driverResponse': "I'm Coming",
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchRecords();
+  }
+
+  Future<void> _fetchRecords() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final violations = await FirebaseService.getEnforcerViolations(user.uid);
+      setState(() {
+        _allRecords = violations;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   List<Map<String, dynamic>> get filteredRecords {
-    if (_selectedFilter == 'All') return records;
-    return records
-        .where((record) => record['action'] == _selectedFilter)
+    if (_selectedFilter == 'All') return _allRecords;
+
+    String filterAction = _selectedFilter;
+    if (_selectedFilter == 'Impounded') {
+      filterAction = 'Immediate Impound';
+    } else if (_selectedFilter == 'Ticket Issued') {
+      filterAction = 'Issue Ticket Only';
+    }
+
+    return _allRecords
+        .where((record) => record['action'] == filterAction)
         .toList();
   }
 
@@ -105,34 +102,38 @@ class _ImpoundRecordsScreenState extends State<ImpoundRecordsScreen> {
             ),
             // Records List
             Expanded(
-              child: filteredRecords.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.folder_open,
-                            size: 100,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 20),
-                          TextWidget(
-                            text: 'No records found',
-                            fontSize: 18,
-                            color: Colors.grey[600],
-                            fontFamily: 'Medium',
-                          ),
-                        ],
-                      ),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: primary),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 15),
-                      itemCount: filteredRecords.length,
-                      itemBuilder: (context, index) {
-                        final record = filteredRecords[index];
-                        return _buildRecordCard(record);
-                      },
-                    ),
+                  : filteredRecords.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.folder_open,
+                                size: 100,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 20),
+                              TextWidget(
+                                text: 'No records found',
+                                fontSize: 18,
+                                color: Colors.grey[600],
+                                fontFamily: 'Medium',
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 15),
+                          itemCount: filteredRecords.length,
+                          itemBuilder: (context, index) {
+                            final record = filteredRecords[index];
+                            return _buildRecordCard(record);
+                          },
+                        ),
             ),
           ],
         ),
@@ -177,17 +178,65 @@ class _ImpoundRecordsScreenState extends State<ImpoundRecordsScreen> {
   }
 
   Widget _buildRecordCard(Map<String, dynamic> record) {
-    Color statusColor = record['status'] == 'Resolved'
-        ? Colors.green
-        : record['status'] == 'Pending'
-            ? Colors.orange
-            : Colors.red;
+    // Format date and time
+    String formattedDate = 'N/A';
+    String formattedTime = 'N/A';
 
-    Color actionColor = record['action'] == 'Impounded'
-        ? Colors.red
-        : record['action'] == 'Ticket Issued'
+    final createdAt = record['createdAt'];
+    if (createdAt != null) {
+      final date = createdAt.toDate();
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ];
+      formattedDate = '${months[date.month - 1]} ${date.day}, ${date.year}';
+
+      final hour =
+          date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+      formattedTime =
+          '${hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} $period';
+    }
+
+    Color statusColor = record['status'] == 'responded'
+        ? Colors.green
+        : record['status'] == 'pending'
             ? Colors.orange
             : Colors.blue;
+
+    Color actionColor = record['action'] == 'Immediate Impound'
+        ? Colors.red
+        : record['action'] == 'Issue Ticket Only'
+            ? Colors.orange
+            : Colors.blue;
+
+    String actionText = record['action'] ?? 'Unknown';
+    if (record['action'] == 'Immediate Impound') {
+      actionText = 'Impounded';
+    } else if (record['action'] == 'Issue Ticket Only') {
+      actionText = 'Ticket Issued';
+    } else if (record['action'] == 'Send Notification') {
+      actionText = 'Notification Sent';
+    }
+
+    String statusText = record['status'] ?? 'Unknown';
+    if (record['status'] == 'responded') {
+      statusText = 'Resolved';
+    } else if (record['status'] == 'pending') {
+      statusText = 'Pending';
+    } else if (record['status'] == 'processed') {
+      statusText = 'Processed';
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -236,7 +285,7 @@ class _ImpoundRecordsScreenState extends State<ImpoundRecordsScreen> {
                         fontFamily: 'Bold',
                       ),
                       TextWidget(
-                        text: record['owner'],
+                        text: 'Violation Record',
                         fontSize: 13,
                         color: Colors.grey[600],
                         fontFamily: 'Regular',
@@ -255,7 +304,7 @@ class _ImpoundRecordsScreenState extends State<ImpoundRecordsScreen> {
                         borderRadius: BorderRadius.circular(15),
                       ),
                       child: TextWidget(
-                        text: record['status'],
+                        text: statusText,
                         fontSize: 11,
                         color: statusColor,
                         fontFamily: 'Bold',
@@ -270,7 +319,7 @@ class _ImpoundRecordsScreenState extends State<ImpoundRecordsScreen> {
                         borderRadius: BorderRadius.circular(15),
                       ),
                       child: TextWidget(
-                        text: record['action'],
+                        text: actionText,
                         fontSize: 11,
                         color: actionColor,
                         fontFamily: 'Bold',
@@ -286,15 +335,22 @@ class _ImpoundRecordsScreenState extends State<ImpoundRecordsScreen> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                _buildDetailRow(Icons.description, 'Reason', record['reason']),
-                const SizedBox(height: 12),
-                _buildDetailRow(Icons.location_on, 'Location', record['location']),
-                const SizedBox(height: 12),
-                _buildDetailRow(
-                    Icons.calendar_today, 'Date & Time', '${record['date']} • ${record['time']}'),
+                _buildDetailRow(Icons.description, 'Reason',
+                    record['violationType'] ?? 'N/A'),
                 const SizedBox(height: 12),
                 _buildDetailRow(
-                    Icons.reply, 'Driver Response', record['driverResponse']),
+                    Icons.location_on, 'Location', record['location'] ?? 'N/A'),
+                const SizedBox(height: 12),
+                _buildDetailRow(Icons.calendar_today, 'Date & Time',
+                    '$formattedDate • $formattedTime'),
+                const SizedBox(height: 12),
+                _buildDetailRow(Icons.reply, 'Driver Response',
+                    record['driverResponse'] ?? 'No Response'),
+                if (record['notes'] != null &&
+                    record['notes'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildDetailRow(Icons.note, 'Notes', record['notes']),
+                ],
               ],
             ),
           ),

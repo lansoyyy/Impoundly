@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vehicle_impound_app/screens/driver/impound_alert_screen.dart';
+import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
 
@@ -11,33 +13,29 @@ class NotificationScreen extends StatefulWidget {
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
-  // Sample notifications
-  final List<Map<String, dynamic>> notifications = [
-    {
-      'title': 'Impound Alert',
-      'message': 'Your vehicle ABC 1234 is about to be impounded',
-      'time': '2 minutes ago',
-      'type': 'alert',
-      'isRead': false,
-      'plateNumber': 'ABC 1234',
-      'reason': 'Clearing Operation',
-      'location': 'EDSA Guadalupe',
-    },
-    {
-      'title': 'Vehicle Registered',
-      'message': 'XYZ 5678 has been successfully registered',
-      'time': '1 hour ago',
-      'type': 'success',
-      'isRead': false,
-    },
-    {
-      'title': 'System Update',
-      'message': 'New features are now available',
-      'time': '2 hours ago',
-      'type': 'info',
-      'isRead': true,
-    },
-  ];
+  List<Map<String, dynamic>> _violations = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchViolations();
+  }
+
+  Future<void> _fetchViolations() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final violations = await FirebaseService.getUserViolations(user.uid);
+      setState(() {
+        _violations = violations;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,21 +54,23 @@ class _NotificationScreenState extends State<NotificationScreen> {
           fontFamily: 'Bold',
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                for (var notification in notifications) {
-                  notification['isRead'] = true;
-                }
-              });
-            },
-            child: TextWidget(
-              text: 'Mark all read',
-              fontSize: 14,
-              color: Colors.white,
-              fontFamily: 'Medium',
+          if (_violations.any((v) => v['status'] == 'pending'))
+            TextButton(
+              onPressed: () {
+                // Mark all as read functionality can be implemented later
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('All notifications marked as read'),
+                  ),
+                );
+              },
+              child: TextWidget(
+                text: 'Mark all read',
+                fontSize: 14,
+                color: Colors.white,
+                fontFamily: 'Medium',
+              ),
             ),
-          ),
         ],
       ),
       body: Container(
@@ -86,70 +86,92 @@ class _NotificationScreenState extends State<NotificationScreen> {
             stops: const [0.0, 0.15],
           ),
         ),
-        child: notifications.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.notifications_none,
-                      size: 100,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 20),
-                    TextWidget(
-                      text: 'No notifications',
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                      fontFamily: 'Medium',
-                    ),
-                  ],
-                ),
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: primary),
               )
-            : ListView.builder(
-                padding: const EdgeInsets.all(15),
-                itemCount: notifications.length,
-                itemBuilder: (context, index) {
-                  final notification = notifications[index];
-                  return _buildNotificationCard(notification);
-                },
-              ),
+            : _violations.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.notifications_none,
+                          size: 100,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 20),
+                        TextWidget(
+                          text: 'No notifications',
+                          fontSize: 18,
+                          color: Colors.grey[600],
+                          fontFamily: 'Medium',
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(15),
+                    itemCount: _violations.length,
+                    itemBuilder: (context, index) {
+                      final violation = _violations[index];
+                      return _buildNotificationCard(violation);
+                    },
+                  ),
       ),
     );
   }
 
-  Widget _buildNotificationCard(Map<String, dynamic> notification) {
+  Widget _buildNotificationCard(Map<String, dynamic> violation) {
+    // Calculate time ago
+    String timeAgo = 'Just now';
+    final createdAt = violation['createdAt'];
+    if (createdAt != null) {
+      final date = createdAt.toDate();
+      final diff = DateTime.now().difference(date);
+      
+      if (diff.inDays > 0) {
+        timeAgo = '${diff.inDays} day${diff.inDays > 1 ? 's' : ''} ago';
+      } else if (diff.inHours > 0) {
+        timeAgo = '${diff.inHours} hour${diff.inHours > 1 ? 's' : ''} ago';
+      } else if (diff.inMinutes > 0) {
+        timeAgo = '${diff.inMinutes} minute${diff.inMinutes > 1 ? 's' : ''} ago';
+      }
+    }
+
     IconData icon;
     Color iconColor;
+    String title;
+    String message;
+    bool isRead = violation['status'] != 'pending';
 
-    switch (notification['type']) {
-      case 'alert':
-        icon = Icons.warning;
-        iconColor = Colors.red;
-        break;
-      case 'success':
-        icon = Icons.check_circle;
-        iconColor = Colors.green;
-        break;
-      default:
-        icon = Icons.info;
-        iconColor = Colors.blue;
+    if (violation['status'] == 'pending') {
+      icon = Icons.warning;
+      iconColor = Colors.red;
+      title = 'Impound Alert';
+      message = 'Your vehicle ${violation['plateNumber']} - ${violation['violationType']} at ${violation['location']}';
+    } else if (violation['status'] == 'responded') {
+      icon = Icons.check_circle;
+      iconColor = Colors.green;
+      title = 'Violation Resolved';
+      message = '${violation['plateNumber']} - ${violation['violationType']}';
+    } else {
+      icon = Icons.info;
+      iconColor = Colors.blue;
+      title = 'Violation Record';
+      message = '${violation['plateNumber']} - ${violation['violationType']}';
     }
 
     return GestureDetector(
       onTap: () {
-        setState(() {
-          notification['isRead'] = true;
-        });
-
-        if (notification['type'] == 'alert') {
+        if (violation['status'] == 'pending') {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => ImpoundAlertScreen(
-                plateNumber: notification['plateNumber'],
-                reason: notification['reason'],
-                location: notification['location'],
+                plateNumber: violation['plateNumber'] ?? 'N/A',
+                reason: violation['violationType'] ?? 'N/A',
+                location: violation['location'] ?? 'N/A',
               ),
             ),
           );
@@ -159,12 +181,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: notification['isRead']
-              ? Colors.white
-              : primary.withOpacity(0.05),
+          color: isRead ? Colors.white : primary.withOpacity(0.05),
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
-            color: notification['isRead']
+            color: isRead
                 ? Colors.grey.withOpacity(0.3)
                 : primary.withOpacity(0.3),
             width: 1,
@@ -197,13 +217,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     children: [
                       Expanded(
                         child: TextWidget(
-                          text: notification['title'],
+                          text: title,
                           fontSize: 16,
                           color: Colors.black,
                           fontFamily: 'Bold',
                         ),
                       ),
-                      if (!notification['isRead'])
+                      if (!isRead)
                         Container(
                           width: 8,
                           height: 8,
@@ -216,7 +236,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   ),
                   const SizedBox(height: 5),
                   TextWidget(
-                    text: notification['message'],
+                    text: message,
                     fontSize: 14,
                     color: Colors.grey[600],
                     fontFamily: 'Regular',
@@ -228,7 +248,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
                       const SizedBox(width: 5),
                       TextWidget(
-                        text: notification['time'],
+                        text: timeAgo,
                         fontSize: 12,
                         color: Colors.grey[500],
                         fontFamily: 'Regular',

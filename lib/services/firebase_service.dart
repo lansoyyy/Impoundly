@@ -372,4 +372,187 @@ class FirebaseService {
       return [];
     }
   }
+
+  // Search vehicle by plate number
+  static Future<Map<String, dynamic>> searchVehicleByPlateNumber(
+      String plateNumber) async {
+    try {
+      QuerySnapshot querySnapshot = await _firestore
+          .collection('vehicles')
+          .where('plateNumber', isEqualTo: plateNumber.toUpperCase())
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return {
+          'success': false,
+          'message':
+              'No vehicle found with plate number: $plateNumber\n\nPlease verify the plate number and try again.'
+        };
+      }
+
+      final vehicleDoc = querySnapshot.docs.first;
+      final vehicleData = vehicleDoc.data() as Map<String, dynamic>;
+
+      // Get owner information
+      final userId = vehicleData['userId'];
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final userData = userDoc.data() as Map<String, dynamic>;
+
+      return {
+        'success': true,
+        'vehicleData': {
+          'vehicleId': vehicleDoc.id,
+          'plateNumber': vehicleData['plateNumber'],
+          'make': vehicleData['vehicleMake'],
+          'model': vehicleData['vehicleModel'],
+          'color': vehicleData['vehicleColor'],
+          'orNumber': vehicleData['orNumber'],
+          'crNumber': vehicleData['crNumber'],
+          'owner': userData['name'],
+          'ownerEmail': userData['email'],
+          'ownerPhone': userData['phone'],
+          'userId': userId,
+          'status': vehicleData['status'] ?? 'active',
+          'isStolen': vehicleData['isStolen'] ?? false,
+        }
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error searching for vehicle: $e'
+      };
+    }
+  }
+
+  // Create violation/impound record
+  static Future<Map<String, dynamic>> createViolation({
+    required String vehicleId,
+    required String userId,
+    required String plateNumber,
+    required String violationType,
+    required String location,
+    required String action,
+    required String enforcerId,
+    String? notes,
+  }) async {
+    try {
+      final violationRef = await _firestore.collection('violations').add({
+        'vehicleId': vehicleId,
+        'userId': userId,
+        'plateNumber': plateNumber,
+        'violationType': violationType,
+        'location': location,
+        'action': action,
+        'enforcerId': enforcerId,
+        'notes': notes ?? '',
+        'status': action == 'Send Notification' ? 'pending' : 'processed',
+        'driverResponse': 'No Response',
+        'createdAt': FieldValue.serverTimestamp(),
+        'respondedAt': null,
+      });
+
+      // If action is "Send Notification", create a notification for the driver
+      if (action == 'Send Notification') {
+        await _firestore.collection('notifications').add({
+          'userId': userId,
+          'violationId': violationRef.id,
+          'title': 'Vehicle Impound Alert',
+          'message':
+              'Your vehicle ($plateNumber) has been flagged for $violationType at $location. Please respond within 5 minutes.',
+          'type': 'violation',
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {
+        'success': true,
+        'message': 'Violation record created successfully',
+        'violationId': violationRef.id,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Failed to create violation: $e'
+      };
+    }
+  }
+
+  // Get violations for a user (driver)
+  static Future<List<Map<String, dynamic>>> getUserViolations(
+      String userId) async {
+    try {
+      QuerySnapshot querySnapshot = await _firestore
+          .collection('violations')
+          .where('userId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return querySnapshot.docs
+          .map((doc) => {
+                'id': doc.id,
+                ...doc.data() as Map<String, dynamic>,
+              })
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Get all violations (for enforcer dashboard)
+  static Future<List<Map<String, dynamic>>> getAllViolations() async {
+    try {
+      QuerySnapshot querySnapshot = await _firestore
+          .collection('violations')
+          .orderBy('createdAt', descending: true)
+          .limit(50)
+          .get();
+
+      return querySnapshot.docs
+          .map((doc) => {
+                'id': doc.id,
+                ...doc.data() as Map<String, dynamic>,
+              })
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Get violations by enforcer
+  static Future<List<Map<String, dynamic>>> getEnforcerViolations(
+      String enforcerId) async {
+    try {
+      QuerySnapshot querySnapshot = await _firestore
+          .collection('violations')
+          .where('enforcerId', isEqualTo: enforcerId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return querySnapshot.docs
+          .map((doc) => {
+                'id': doc.id,
+                ...doc.data() as Map<String, dynamic>,
+              })
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Update driver response to violation
+  static Future<bool> updateDriverResponse(
+      String violationId, String response) async {
+    try {
+      await _firestore.collection('violations').doc(violationId).update({
+        'driverResponse': response,
+        'respondedAt': FieldValue.serverTimestamp(),
+        'status': 'responded',
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:vehicle_impound_app/screens/enforcer/violation_details_screen.dart';
+import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/button_widget.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
@@ -24,29 +25,92 @@ class _ScanVehicleScreenState extends State<ScanVehicleScreen> {
     super.dispose();
   }
 
-  void _scanVehicle() {
-    if (_plateNumberController.text.isEmpty) return;
+  Future<void> _scanVehicle() async {
+    if (_plateNumberController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a plate number'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _isScanning = true;
+      _vehicleFound = false;
+      _vehicleData = null;
     });
 
-    // Simulate scanning delay
-    Future.delayed(const Duration(seconds: 2), () {
+    try {
+      // Search for vehicle in Firestore
+      final result = await FirebaseService.searchVehicleByPlateNumber(
+        _plateNumberController.text.trim().toUpperCase(),
+      );
+
       setState(() {
         _isScanning = false;
-        _vehicleFound = true;
-        _vehicleData = {
-          'plateNumber': _plateNumberController.text.toUpperCase(),
-          'owner': 'John Doe',
-          'make': 'Toyota',
-          'model': 'Vios',
-          'color': 'White',
-          'status': 'Active',
-          'isStolen': false,
-        };
       });
-    });
+
+      if (result['success']) {
+        setState(() {
+          _vehicleFound = true;
+          _vehicleData = result['vehicleData'];
+        });
+      } else {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.orange, size: 30),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextWidget(
+                      text: 'Vehicle Not Found',
+                      fontSize: 18,
+                      color: Colors.black,
+                      fontFamily: 'Bold',
+                    ),
+                  ),
+                ],
+              ),
+              content: TextWidget(
+                text: result['message'],
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontFamily: 'Regular',
+                maxLines: 5,
+              ),
+              actions: [
+                ButtonWidget(
+                  label: 'OK',
+                  onPressed: () => Navigator.pop(context),
+                  width: 100,
+                  height: 45,
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isScanning = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
 
@@ -10,29 +12,29 @@ class ImpoundHistoryScreen extends StatefulWidget {
 }
 
 class _ImpoundHistoryScreenState extends State<ImpoundHistoryScreen> {
-  // Sample history data
-  final List<Map<String, dynamic>> history = [
-    {
-      'plateNumber': 'ABC 1234',
-      'reason': 'Clearing Operation',
-      'location': 'EDSA Guadalupe',
-      'date': 'Oct 8, 2025',
-      'time': '10:30 AM',
-      'enforcer': 'Officer Juan Dela Cruz',
-      'status': 'Resolved',
-      'impoundArea': 'MMDA Compound - Guadalupe',
-    },
-    {
-      'plateNumber': 'ABC 1234',
-      'reason': 'Illegal Parking',
-      'location': 'Ayala Avenue',
-      'date': 'Oct 5, 2025',
-      'time': '2:15 PM',
-      'enforcer': 'Officer Maria Santos',
-      'status': 'Ticket Issued',
-      'impoundArea': 'N/A',
-    },
-  ];
+  List<Map<String, dynamic>> _violations = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchViolations();
+  }
+
+  Future<void> _fetchViolations() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final violations = await FirebaseService.getUserViolations(user.uid);
+      setState(() {
+        _violations = violations;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,40 +66,74 @@ class _ImpoundHistoryScreenState extends State<ImpoundHistoryScreen> {
             stops: const [0.0, 0.15],
           ),
         ),
-        child: history.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.history,
-                      size: 100,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 20),
-                    TextWidget(
-                      text: 'No impound history',
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                      fontFamily: 'Medium',
-                    ),
-                  ],
-                ),
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: primary),
               )
-            : ListView.builder(
-                padding: const EdgeInsets.all(15),
-                itemCount: history.length,
-                itemBuilder: (context, index) {
-                  final record = history[index];
-                  return _buildHistoryCard(record);
-                },
-              ),
+            : _violations.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.history,
+                          size: 100,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 20),
+                        TextWidget(
+                          text: 'No impound history',
+                          fontSize: 18,
+                          color: Colors.grey[600],
+                          fontFamily: 'Medium',
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(15),
+                    itemCount: _violations.length,
+                    itemBuilder: (context, index) {
+                      final record = _violations[index];
+                      return _buildHistoryCard(record);
+                    },
+                  ),
       ),
     );
   }
 
   Widget _buildHistoryCard(Map<String, dynamic> record) {
-    Color statusColor = record['status'] == 'Resolved'
+    // Format date and time
+    String formattedDate = 'N/A';
+    String formattedTime = 'N/A';
+    
+    final createdAt = record['createdAt'];
+    if (createdAt != null) {
+      final date = createdAt.toDate();
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ];
+      formattedDate = '${months[date.month - 1]} ${date.day}, ${date.year}';
+      
+      final hour =
+          date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+      formattedTime =
+          '${hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} $period';
+    }
+    
+    Color statusColor = record['status'] == 'responded'
         ? Colors.green
         : record['status'] == 'Ticket Issued'
             ? Colors.orange
@@ -143,7 +179,7 @@ class _ImpoundHistoryScreenState extends State<ImpoundHistoryScreen> {
                         fontFamily: 'Bold',
                       ),
                       TextWidget(
-                        text: '${record['date']} • ${record['time']}',
+                        text: '$formattedDate • $formattedTime',
                         fontSize: 12,
                         color: Colors.grey[600],
                         fontFamily: 'Regular',
@@ -159,7 +195,8 @@ class _ImpoundHistoryScreenState extends State<ImpoundHistoryScreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: TextWidget(
-                    text: record['status'],
+                    text: record['status'] == 'responded' ? 'Resolved' : 
+                          record['status'] == 'pending' ? 'Pending' : 'Processed',
                     fontSize: 12,
                     color: statusColor,
                     fontFamily: 'Bold',
@@ -176,26 +213,26 @@ class _ImpoundHistoryScreenState extends State<ImpoundHistoryScreen> {
                 _buildDetailRow(
                   Icons.description,
                   'Reason',
-                  record['reason'],
+                  record['violationType'] ?? 'N/A',
                 ),
                 const SizedBox(height: 15),
                 _buildDetailRow(
                   Icons.location_on,
                   'Location',
-                  record['location'],
+                  record['location'] ?? 'N/A',
                 ),
                 const SizedBox(height: 15),
                 _buildDetailRow(
-                  Icons.badge,
-                  'Enforcer',
-                  record['enforcer'],
+                  Icons.local_shipping,
+                  'Action',
+                  record['action'] ?? 'N/A',
                 ),
-                if (record['impoundArea'] != 'N/A') ...[
+                if (record['notes'] != null && record['notes'].toString().isNotEmpty) ...[
                   const SizedBox(height: 15),
                   _buildDetailRow(
-                    Icons.warehouse,
-                    'Impound Area',
-                    record['impoundArea'],
+                    Icons.note,
+                    'Notes',
+                    record['notes'],
                   ),
                 ],
               ],

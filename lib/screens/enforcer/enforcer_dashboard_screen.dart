@@ -19,19 +19,74 @@ class EnforcerDashboardScreen extends StatefulWidget {
 class _EnforcerDashboardScreenState extends State<EnforcerDashboardScreen> {
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
+  List<Map<String, dynamic>> _recentViolations = [];
+  int _todayViolations = 0;
+  int _todayImpounded = 0;
+  int _todayTickets = 0;
+  int _stolenDetected = 0;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserData();
+    _fetchData();
   }
 
-  Future<void> _fetchUserData() async {
+  Future<void> _fetchData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final userData = await FirebaseService.getUserData(user.uid);
+      final violations = await FirebaseService.getEnforcerViolations(user.uid);
+
+      // Calculate today's statistics
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+
+      int impounded = 0;
+      int tickets = 0;
+      int stolen = 0;
+      List<Map<String, dynamic>> recentList = [];
+
+      for (var violation in violations) {
+        final createdAt = violation['createdAt'];
+        DateTime? violationDate;
+
+        if (createdAt != null) {
+          violationDate = createdAt.toDate();
+
+          // Check if violation is from today
+          if (violationDate != null && violationDate.isAfter(todayStart)) {
+            if (violation['action'] == 'Immediate Impound') {
+              impounded++;
+            } else if (violation['action'] == 'Issue Ticket Only') {
+              tickets++;
+            }
+
+            if (violation['violationType'] == 'Stolen') {
+              stolen++;
+            }
+          }
+        }
+
+        // Get recent violations (last 5)
+        if (recentList.length < 5) {
+          recentList.add(violation);
+        }
+      }
+
       setState(() {
         _userData = userData;
+        _recentViolations = recentList;
+        _todayViolations = violations.where((v) {
+          final createdAt = v['createdAt'];
+          if (createdAt != null) {
+            final date = createdAt.toDate();
+            return date.isAfter(todayStart);
+          }
+          return false;
+        }).length;
+        _todayImpounded = impounded;
+        _todayTickets = tickets;
+        _stolenDetected = stolen;
         _isLoading = false;
       });
     } else {
@@ -137,8 +192,8 @@ class _EnforcerDashboardScreenState extends State<EnforcerDashboardScreen> {
                           children: [
                             Expanded(
                               child: _buildStatCard(
-                                '12',
-                                'Vehicles\nScanned',
+                                _todayViolations.toString(),
+                                'Today\'s\nViolations',
                                 Icons.qr_code_scanner,
                                 Colors.blue,
                               ),
@@ -146,7 +201,7 @@ class _EnforcerDashboardScreenState extends State<EnforcerDashboardScreen> {
                             const SizedBox(width: 15),
                             Expanded(
                               child: _buildStatCard(
-                                '3',
+                                _todayImpounded.toString(),
                                 'Vehicles\nImpounded',
                                 Icons.local_shipping,
                                 Colors.red,
@@ -159,7 +214,7 @@ class _EnforcerDashboardScreenState extends State<EnforcerDashboardScreen> {
                           children: [
                             Expanded(
                               child: _buildStatCard(
-                                '9',
+                                _todayTickets.toString(),
                                 'Tickets\nIssued',
                                 Icons.receipt,
                                 Colors.orange,
@@ -168,7 +223,7 @@ class _EnforcerDashboardScreenState extends State<EnforcerDashboardScreen> {
                             const SizedBox(width: 15),
                             Expanded(
                               child: _buildStatCard(
-                                '0',
+                                _stolenDetected.toString(),
                                 'Stolen\nDetected',
                                 Icons.warning,
                                 Colors.purple,
@@ -224,21 +279,67 @@ class _EnforcerDashboardScreenState extends State<EnforcerDashboardScreen> {
                           fontFamily: 'Bold',
                         ),
                         const SizedBox(height: 15),
-                        _buildActivityCard(
-                          'ABC 1234',
-                          'Clearing Operation',
-                          '10 minutes ago',
-                          'Ticket Issued',
-                          Colors.orange,
-                        ),
-                        const SizedBox(height: 10),
-                        _buildActivityCard(
-                          'XYZ 5678',
-                          'Illegal Parking',
-                          '25 minutes ago',
-                          'Impounded',
-                          Colors.red,
-                        ),
+                        if (_recentViolations.isEmpty)
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: TextWidget(
+                                text: 'No recent violations',
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                                fontFamily: 'Regular',
+                              ),
+                            ),
+                          )
+                        else
+                          ..._recentViolations.map((violation) {
+                            final createdAt = violation['createdAt'];
+                            String timeAgo = 'Just now';
+
+                            if (createdAt != null) {
+                              final date = createdAt.toDate();
+                              final diff = DateTime.now().difference(date);
+
+                              if (diff.inDays > 0) {
+                                timeAgo =
+                                    '${diff.inDays} day${diff.inDays > 1 ? 's' : ''} ago';
+                              } else if (diff.inHours > 0) {
+                                timeAgo =
+                                    '${diff.inHours} hour${diff.inHours > 1 ? 's' : ''} ago';
+                              } else if (diff.inMinutes > 0) {
+                                timeAgo =
+                                    '${diff.inMinutes} minute${diff.inMinutes > 1 ? 's' : ''} ago';
+                              }
+                            }
+
+                            Color statusColor = Colors.blue;
+                            String statusText =
+                                violation['action'] ?? 'Unknown';
+
+                            if (violation['action'] == 'Immediate Impound') {
+                              statusColor = Colors.red;
+                              statusText = 'Impounded';
+                            } else if (violation['action'] ==
+                                'Issue Ticket Only') {
+                              statusColor = Colors.orange;
+                              statusText = 'Ticket Issued';
+                            } else if (violation['action'] ==
+                                'Send Notification') {
+                              statusColor = Colors.blue;
+                              statusText = 'Notification Sent';
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _buildActivityCard(
+                                violation['plateNumber'] ?? 'N/A',
+                                violation['violationType'] ?? 'Unknown',
+                                timeAgo,
+                                statusText,
+                                statusColor,
+                              ),
+                            );
+                          }).toList(),
                       ],
                     ),
                   ),

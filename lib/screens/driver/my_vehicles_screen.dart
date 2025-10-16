@@ -16,6 +16,7 @@ class MyVehiclesScreen extends StatefulWidget {
 
 class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
   List<Map<String, dynamic>> vehicles = [];
+  List<Map<String, dynamic>> _violations = [];
   bool _isLoading = true;
 
   @override
@@ -28,8 +29,10 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final userVehicles = await FirebaseService.getUserVehicles(user.uid);
+      final violations = await FirebaseService.getUserViolations(user.uid);
       setState(() {
         vehicles = userVehicles;
+        _violations = violations;
         _isLoading = false;
       });
     } else {
@@ -192,19 +195,30 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: TextWidget(
-                  text: vehicle['status'],
-                  fontSize: 12,
-                  color: Colors.green,
-                  fontFamily: 'Bold',
-                ),
+              Builder(
+                builder: (context) {
+                  // Check if vehicle has pending violations
+                  final hasViolation = _violations
+                      .any((v) => v['plateNumber'] == vehicle['plateNumber']);
+
+                  String status = hasViolation ? 'Violation Alert' : 'Active';
+                  Color statusColor = hasViolation ? Colors.red : Colors.green;
+
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: TextWidget(
+                      text: status,
+                      fontSize: 12,
+                      color: statusColor,
+                      fontFamily: 'Bold',
+                    ),
+                  );
+                },
               ),
             ],
           ),

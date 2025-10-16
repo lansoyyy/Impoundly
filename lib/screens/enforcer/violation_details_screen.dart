@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vehicle_impound_app/services/firebase_service.dart';
 import 'package:vehicle_impound_app/utils/colors.dart';
 import 'package:vehicle_impound_app/widgets/button_widget.dart';
 import 'package:vehicle_impound_app/widgets/text_widget.dart';
@@ -21,17 +22,16 @@ class _ViolationDetailsScreenState extends State<ViolationDetailsScreen> {
   final _locationController = TextEditingController();
   final _notesController = TextEditingController();
 
-  String _selectedViolationType = 'Clearing Operation';
+  String _selectedViolationType = 'Impound';
   String _selectedAction = 'Send Notification';
+  bool _isSubmitting = false;
 
   final List<String> violationTypes = [
+    'Impound',
     'Clearing Operation',
     'Illegal Parking',
-    'Obstruction',
+    'Stolen',
     'Accident',
-    'Fire Hazard',
-    'Flood/Typhoon',
-    'Earthquake',
     'Other Emergency',
   ];
 
@@ -101,7 +101,8 @@ class _ViolationDetailsScreenState extends State<ViolationDetailsScreen> {
                           color: primary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(Icons.directions_car, color: primary, size: 35),
+                        child: Icon(Icons.directions_car,
+                            color: primary, size: 35),
                       ),
                       const SizedBox(width: 15),
                       Expanded(
@@ -245,12 +246,15 @@ class _ViolationDetailsScreenState extends State<ViolationDetailsScreen> {
                       const SizedBox(height: 30),
                       ButtonWidget(
                         label: 'Submit',
-                        onPressed: () {
-                          if (_formKey.currentState!.validate()) {
-                            _showConfirmationDialog();
-                          }
-                        },
+                        onPressed: _isSubmitting
+                            ? null
+                            : () {
+                                if (_formKey.currentState!.validate()) {
+                                  _showConfirmationDialog();
+                                }
+                              },
                         width: double.infinity,
+                        isLoading: _isSubmitting,
                       ),
                     ],
                   ),
@@ -319,8 +323,7 @@ class _ViolationDetailsScreenState extends State<ViolationDetailsScreen> {
                 ],
               ),
             ),
-            if (isSelected)
-              Icon(Icons.check_circle, color: primary, size: 24),
+            if (isSelected) Icon(Icons.check_circle, color: primary, size: 24),
           ],
         ),
       ),
@@ -404,7 +407,7 @@ class _ViolationDetailsScreenState extends State<ViolationDetailsScreen> {
             label: 'Confirm',
             onPressed: () {
               Navigator.pop(context);
-              _showSuccessDialog();
+              _submitViolation();
             },
             width: 120,
             height: 45,
@@ -412,6 +415,62 @@ class _ViolationDetailsScreenState extends State<ViolationDetailsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _submitViolation() async {
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      // Get current enforcer ID from Firebase Auth
+      final currentUser = FirebaseService.getCurrentUser();
+      if (currentUser == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      final result = await FirebaseService.createViolation(
+        vehicleId: widget.vehicleData['vehicleId'],
+        userId: widget.vehicleData['userId'],
+        plateNumber: widget.vehicleData['plateNumber'],
+        violationType: _selectedViolationType,
+        location: _locationController.text.trim(),
+        action: _selectedAction,
+        enforcerId: currentUser.uid,
+        notes: _notesController.text.trim(),
+      );
+
+      setState(() {
+        _isSubmitting = false;
+      });
+
+      if (result['success']) {
+        if (mounted) {
+          _showSuccessDialog();
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message']),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isSubmitting = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showSuccessDialog() {
@@ -450,9 +509,9 @@ class _ViolationDetailsScreenState extends State<ViolationDetailsScreen> {
             child: ButtonWidget(
               label: 'Done',
               onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
-                Navigator.pop(context);
+                Navigator.pop(context); // Close dialog
+                Navigator.pop(context); // Go back to scan screen
+                Navigator.pop(context); // Go back to dashboard
               },
               width: 150,
             ),
