@@ -39,6 +39,9 @@ dependencies:
   cloud_firestore: ^6.0.1
   firebase_storage: ^13.0.1
   firebase_auth: ^6.0.2
+  google_ml_kit: ^0.18.0
+  image_picker: ^1.0.7
+  image_cropper: ^5.0.1
 
 dev_dependencies:
   flutter_test:
