@@ -65,10 +65,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         filteredDrivers = List.from(drivers);
       } else {
         filteredDrivers = drivers
-            .where((driver) => driver['name']
-                .toString()
-                .toLowerCase()
-                .contains(query.toLowerCase()))
+            .where((driver) =>
+                driver['name'] != null &&
+                driver['name']
+                    .toString()
+                    .toLowerCase()
+                    .contains(query.toLowerCase()))
             .toList();
       }
     });
@@ -259,13 +261,13 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       TextWidget(
-                        text: driver['name'],
+                        text: driver['name']?.toString() ?? 'Unknown',
                         fontSize: 18,
                         color: Colors.black,
                         fontFamily: 'Bold',
                       ),
                       TextWidget(
-                        text: driver['email'],
+                        text: driver['email']?.toString() ?? 'No email',
                         fontSize: 13,
                         color: Colors.grey[600],
                         fontFamily: 'Regular',
@@ -295,7 +297,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _buildInfoItem('Phone', driver['phone']),
+                  child: _buildInfoItem(
+                      'Phone', driver['phone']?.toString() ?? 'No phone'),
                 ),
                 Expanded(
                   child: _buildInfoItem('Status',
@@ -431,7 +434,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              '${drivers[index]['name']} is now ${drivers[index]['status']}'),
+              '${drivers[index]['name']?.toString() ?? 'Driver'} is now ${drivers[index]['status']}'),
         ),
       );
     } catch (e) {
@@ -458,7 +461,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           fontFamily: 'Bold',
         ),
         content: TextWidget(
-          text: 'Are you sure you want to delete ${driver['name']}?',
+          text:
+              'Are you sure you want to delete ${driver['name']?.toString() ?? 'this driver'}?',
           fontSize: 14,
           color: Colors.grey[600],
           fontFamily: 'Regular',
@@ -490,7 +494,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('${driver['name']} has been deleted'),
+                    content: Text(
+                        '${driver['name']?.toString() ?? 'Driver'} has been deleted'),
                     backgroundColor: Colors.red,
                   ),
                 );
@@ -588,9 +593,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   // Add to filtered list if it matches current search
                   if (_searchController.text.isEmpty ||
                       newDriver['name']
-                          .toString()
-                          .toLowerCase()
-                          .contains(_searchController.text.toLowerCase())) {
+                              ?.toString()
+                              .toLowerCase()
+                              .contains(_searchController.text.toLowerCase()) ==
+                          true) {
                     filteredDrivers.add(newDriver);
                   }
                 });
